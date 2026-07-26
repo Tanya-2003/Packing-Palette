@@ -142,14 +142,31 @@ button {
 }
 
 .suggestion-item {
+  display: block;
+  width: 100%;
+  text-align: left;
   padding: 10px 12px;
   border-radius: 10px;
   font-size: 0.92rem;
   color: var(--ink);
+  background: transparent;
+  border: none;
+  cursor: pointer;
 }
 
 .suggestion-item:hover {
   background: var(--panel-strong);
+}
+
+.chip-close {
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0.75;
+  cursor: pointer;
 }
 
 .field-hint {

@@ -183,23 +183,33 @@ async function getImageInfos(apiBase, titles) {
     .filter((x) => x && x.src && x.mime.startsWith("image/") && x.mime !== "image/svg+xml");
 }
 
+const GOOGLE_IMAGE_SEARCH_ENABLED = import.meta.env.VITE_GOOGLE_IMAGE_SEARCH === 'true';
+let googleImageSearchEnabled = true;
+
 async function fetchGoogleImages(query, limit = 3) {
   const apiKey = import.meta.env.VITE_GOOGLE_API_KEY;
   const cx = import.meta.env.VITE_GOOGLE_CX;
+  const enabled = GOOGLE_IMAGE_SEARCH_ENABLED && apiKey && cx && googleImageSearchEnabled;
 
-  if (!apiKey || !cx) return [];
+  if (!enabled) return [];
 
   try {
     const url = `https://www.googleapis.com/customsearch/v1?key=${encodeURIComponent(apiKey)}&cx=${encodeURIComponent(cx)}&q=${encodeURIComponent(query)}&searchType=image&num=${limit}&imgSize=large&safe=active`;
     const res = await fetch(url);
+    const text = await res.text();
     if (!res.ok) {
-      // attempt to parse error body for debugging
       let errBody = null;
-      try { errBody = await res.json(); } catch(e){ errBody = await res.text(); }
+      try { errBody = JSON.parse(text); } catch (e) { errBody = text; }
       console.warn('Google Custom Search error', res.status, errBody);
+      if (res.status === 400 || res.status === 403) {
+        const message = typeof errBody === 'object' ? errBody?.error?.message || '' : String(errBody);
+        if (/custom search json api|permission_denied|access to Custom Search JSON API/i.test(message)) {
+          googleImageSearchEnabled = false;
+        }
+      }
       return [];
     }
-    const json = await res.json();
+    const json = JSON.parse(text);
     const items = (json.items || []).filter(Boolean);
 
     // prefer jpg/jpeg/png links first, then take others
@@ -889,15 +899,19 @@ export default function PackingPalette() {
                 placeholder="Start typing a city..."
               />
               {suggestions.length > 0 && (
-                <ul className="suggestion-list">
+                <ul className="suggestion-list" role="listbox">
                   {suggestions.map((s, i) => (
-                    <li
-                      key={`${s.latitude}-${s.longitude}-${i}`}
-                      onMouseDown={() => pickSuggestion(s)}
-                      className="suggestion-item"
-                    >
-                      {s.name}, {s.country}
-                      {s.admin1 ? ` · ${s.admin1}` : ""}
+                    <li key={`${s.latitude}-${s.longitude}-${i}`}>
+                      <button
+                        type="button"
+                        role="option"
+                        aria-label={`Select ${s.name}, ${s.country}`}
+                        onMouseDown={() => pickSuggestion(s)}
+                        className="suggestion-item"
+                      >
+                        {s.name}, {s.country}
+                        {s.admin1 ? ` · ${s.admin1}` : ""}
+                      </button>
                     </li>
                   ))}
                 </ul>
@@ -946,7 +960,14 @@ export default function PackingPalette() {
               {activities.map((a) => (
                 <span key={a} className="activity-chip">
                   {a}
-                  <X size={12} className="chip-close" onClick={() => setActivities(activities.filter((x) => x !== a))} />
+                  <button
+                    type="button"
+                    className="chip-close"
+                    aria-label={`Remove activity ${a}`}
+                    onClick={() => setActivities(activities.filter((x) => x !== a))}
+                  >
+                    <X size={12} />
+                  </button>
                 </span>
               ))}
             </div>
